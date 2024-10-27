@@ -135,3 +135,12 @@ button:disabled {
   display: block;  /* Make the checkbox a block element */
   margin: auto;  /* Center the block element */
 }
+
+.feedback-message {
+  color: green;
+  margin-top: 5px;
+}
+
+.feedback-message.error {
+  color: red;
+}
