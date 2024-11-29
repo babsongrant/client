@@ -5,6 +5,7 @@ import './NonSportEventForm.css';  // Make sure this line is present
 
 function NonSportEventForm({ onSubmit, onCancel }) {
   const [formData, setFormData] = useState({
+    event_type: '',
     cal_event_title: '',
     cal_event_date: '',
     cal_event_time: '',
@@ -14,24 +15,27 @@ function NonSportEventForm({ onSubmit, onCancel }) {
     production_team_id: '',
     production_team_name: '',
     cal_status: '',
-    stream_key: '',
-    boxcast_: ''
   });
 
   const [venues, setVenues] = useState([]);
   const [productionTeams, setProductionTeams] = useState([]);
+  const [eventTypes, setEventTypes] = useState([]);
 
-  // Fetch venues and production teams when component mounts
+  // Fetch venues, production teams, and event types when component mounts
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [venuesResponse, productionTeamsResponse] = await Promise.all([
+        const [venuesResponse, productionTeamsResponse, eventTypesResponse] = await Promise.all([
           axios.get('http://localhost:3001/api/venues'),
           axios.get('http://localhost:3001/api/production_teams'),
+          axios.get('http://localhost:3001/api/event-types'),
         ]);
 
         setVenues(venuesResponse.data);
         setProductionTeams(productionTeamsResponse.data);
+        setEventTypes(eventTypesResponse.data);
+        
+        console.log('Fetched event types:', eventTypesResponse.data);
       } catch (error) {
         console.error('Error fetching data:', error);
       }
@@ -92,7 +96,25 @@ function NonSportEventForm({ onSubmit, onCancel }) {
   return (
     <form onSubmit={handleSubmit} className="add-event-form">
       <h2>Add Non-Sport Event</h2>
+      {console.log('Event types in render:', eventTypes)} {/* Add this line */}
       <div className="form-grid">
+        <div className="form-group">
+          <label htmlFor="event_type">Event Type:</label>
+          <select
+            id="event_type"
+            name="event_type"
+            value={formData.event_type}
+            onChange={handleChange}
+            required
+          >
+            <option value="">Select Event Type</option>
+            {eventTypes.map(type => (
+              <option key={type.type_id} value={type.type_id}>
+                {type.event_type}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="form-group">
           <label htmlFor="cal_event_title">Event Title:</label>
           <input

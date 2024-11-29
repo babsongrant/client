@@ -1,0 +1,161 @@
+.organization-manager {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.organization-form {
+  background-color: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.form-group label {
+  font-weight: bold;
+}
+
+.form-group input {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-start;
+  margin-top: 20px;
+}
+
+.organizations-list {
+  margin-top: 30px;
+}
+
+.organizations-list table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.organizations-list th,
+.organizations-list td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+
+.organizations-list th {
+  background-color: #f5f5f5;
+  font-weight: bold;
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-danger {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.btn-primary {
+  background-color: #007bff;
+  color: white;
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+  margin-right: 5px;
+}
+
+.btn-danger {
+  background-color: #dc3545;
+  color: white;
+}
+
+.error-message {
+  color: #dc3545;
+  padding: 10px;
+  margin: 10px 0;
+  background-color: #f8d7da;
+  border-radius: 4px;
+}
+
+.success-message {
+  color: #28a745;
+  padding: 10px;
+  margin: 10px 0;
+  background-color: #d4edda;
+  border-radius: 4px;
+}
+
+.btn-success {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  background-color: #28a745;
+  color: white;
+  margin-right: 5px;
+}
+
+.btn-success:hover {
+  background-color: #218838;
+}
+
+.form-group select {
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: white;
+  width: 100%;
+}
+
+.form-group select:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+}
+
+.org-row {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.org-row:hover {
+  background-color: #f5f5f5;
+}
+
+.org-row.expanded {
+  background-color: #e9ecef;
+}
+
+.edit-form-row {
+  background-color: #f8f9fa;
+}
+
+.edit-form-row td {
+  padding: 20px;
+}
+
+.new-org-button {
+  margin-bottom: 20px;
+} 

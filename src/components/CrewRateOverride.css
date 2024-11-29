@@ -1,0 +1,104 @@
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.rate-override-modal {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  z-index: 1001;
+  position: relative;
+  width: 95%;
+}
+
+.rates-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 20px;
+  background-color: white;
+}
+
+.rates-table th,
+.rates-table td {
+  padding: 8px;
+  border: 1px solid #ddd;
+  text-align: left;
+  background-color: white;
+}
+
+.rates-table th {
+  background-color: #f5f5f5;
+  color: #333;
+}
+
+.has-override {
+  background-color: #fff3e0 !important;
+}
+
+.rate-cell {
+  cursor: pointer;
+  padding: 8px;
+  position: relative;
+}
+
+.rate-input-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.rate-input-container input {
+  width: 100%;
+  padding: 4px;
+  border: 2px solid #007bff;
+  border-radius: 4px;
+  font-size: inherit;
+  background-color: white;
+}
+
+.rate-display {
+  width: 100%;
+  height: 100%;
+}
+
+.rate-cell:hover .rate-display {
+  background-color: #f0f0f0;
+}
+
+.override-indicator {
+  color: #ff6b6b;
+  margin-left: 4px;
+  font-weight: bold;
+}
+
+.btn-secondary {
+  padding: 8px 16px;
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.error-message {
+  color: red;
+  margin-bottom: 10px;
+}
+
+.help-text {
+  color: #666;
+  font-style: italic;
+  margin-bottom: 10px;
+} 

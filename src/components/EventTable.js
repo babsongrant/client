@@ -1,43 +1,68 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import './EventTable.css';
-import EventForm from './EventForm'; // We'll create this component next
+import EventForm from './EventForm';
 import AddEventForm from './AddEventForm';
-import NonSportEventForm from './NonSportEventForm'; // Add this import
+import NonSportEventForm from './NonSportEventForm';
 
 function EventTable() {
   const [events, setEvents] = useState([]);
-  const [editingId, setEditingId] = useState(null);
-  const [showPreviousEvents, setShowPreviousEvents] = useState(false);
-  const [previousEventsCount, setPreviousEventsCount] = useState(0);
-  const [showAddEventForm, setShowAddEventForm] = useState(false); // New state
-  const [showNonSportForm, setShowNonSportForm] = useState(false); // Add this state
+  const [eventTypes, setEventTypes] = useState([]);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [showNonSportForm, setShowNonSportForm] = useState(false);
   const [loadingEventId, setLoadingEventId] = useState(null);
   const [feedbackMessage, setFeedbackMessage] = useState('');
-  const [eventTypes, setEventTypes] = useState([]);
+  const [showPreviousEvents, setShowPreviousEvents] = useState(false);
+  const [previousEventsCount, setPreviousEventsCount] = useState(0);
+  const [showAddEventForm, setShowAddEventForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
   const fetchEvents = useCallback(async () => {
     try {
+      console.log('Fetching events...');
+      // First, test the connection
+      const testResponse = await axios.get('http://localhost:3001/api/test');
+      console.log('API Test Response:', testResponse.data);
+
+      // Then fetch the actual data
       const response = await axios.get('http://localhost:3001/api/calendar');
-      console.log('Fetched events:', response.data);
+      console.log('Raw Calendar Data:', response.data);
       
+      if (!Array.isArray(response.data)) {
+        console.error('Expected array but got:', typeof response.data);
+        return;
+      }
+
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       yesterday.setHours(0, 0, 0, 0);
 
-      const sortedEvents = response.data.sort((a, b) => new Date(a.cal_event_date) - new Date(b.cal_event_date));
+      const sortedEvents = response.data.sort((a, b) => 
+        new Date(a.cal_event_date) - new Date(b.cal_event_date)
+      );
       
       const filteredEvents = sortedEvents.filter(event => {
         const eventDate = new Date(event.cal_event_date);
         return showPreviousEvents || eventDate >= yesterday;
       });
 
-      const previousCount = sortedEvents.filter(event => new Date(event.cal_event_date) < yesterday).length;
+      // Calculate previous events count
+      const previousCount = sortedEvents.filter(event => 
+        new Date(event.cal_event_date) < yesterday
+      ).length;
+      
       setPreviousEventsCount(previousCount);
 
+      console.log('Setting events state with:', filteredEvents);
       setEvents(filteredEvents);
     } catch (error) {
-      console.error('Error fetching events:', error);
+      console.error('Error fetching events:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
     }
   }, [showPreviousEvents]);
 
@@ -55,152 +80,116 @@ function EventTable() {
     fetchEventTypes();
   }, [fetchEvents, fetchEventTypes]);
 
-  const handleMakeSlate = async (event) => {
+  const handleFormSubmit = async (eventData) => {
     try {
-      const response = await axios.post('http://localhost:3001/api/make-slate', {
+      console.log('EventTable - Received form data:', eventData);
+
+      // Make the update request to the server
+      const response = await axios.put(
+        `http://localhost:3001/api/calendar/${eventData.event_id}`,
+        eventData
+      );
+      
+      if (response.data.success) {
+        console.log('Event updated successfully');
+        await fetchEvents(); // Refresh the events list
+        setEditingId(null); // Close the form
+      } else {
+        throw new Error(response.data.message || 'Failed to update event');
+      }
+    } catch (error) {
+      console.error('Error updating event:', error);
+      throw error;
+    }
+  };
+
+  const handleFormCancel = () => {
+    setShowEditForm(false);
+    setSelectedEvent(null);
+  };
+
+  const handleFormDelete = async () => {
+    await fetchEvents();
+    setShowEditForm(false);
+    setSelectedEvent(null);
+  };
+
+  const handleAddFormSubmit = async (newEventData) => {
+    await fetchEvents();
+    setShowAddForm(false);
+  };
+
+  const handleNonSportFormSubmit = async (newEventData) => {
+    await fetchEvents();
+    setShowNonSportForm(false);
+  };
+
+  const handleAddFormCancel = () => {
+    setShowAddForm(false);
+  };
+
+  const handleNonSportFormCancel = () => {
+    setShowNonSportForm(false);
+  };
+
+  const handleMakeSlate = async (event) => {
+    console.log('handleMakeSlate called with event:', event);
+    
+    if (event.slate) {
+      console.log('Attempting to delete slate');
+      try {
+        const response = await axios.post('http://localhost:3001/api/delete-slate', {
+          eventId: event.event_id
+        });
+        console.log('Delete slate response:', response.data);
+        
+        if (response.data.success) {
+          await fetchEvents();
+        } else {
+          console.error('Failed to delete slate:', response.data.message);
+        }
+      } catch (error) {
+        console.error('Error deleting slate:', error);
+      }
+    } else {
+      // Check if we need to force update the slate
+      const shouldForceUpdate = true; // Always recreate slate with current data
+      
+      console.log('Attempting to create/update slate with data:', {
         eventId: event.event_id,
         homeTeam: event.home_team_name,
         awayTeam: event.away_team_name,
         eventDate: event.cal_event_date,
         eventTime: event.cal_event_time,
-        sportId: event.sport_id
+        sportId: event.sport_id,
+        forceUpdate: shouldForceUpdate
       });
       
-      if (response.data.success) {
-        console.log('Slate created successfully');
-        // Refresh the events data to show updated slate status
-        fetchEvents();
-      } else {
-        console.error('Failed to create slate:', response.data.message);
+      try {
+        const response = await axios.post('http://localhost:3001/api/make-slate', {
+          eventId: event.event_id,
+          homeTeam: event.home_team_name,
+          awayTeam: event.away_team_name,
+          eventDate: event.cal_event_date,
+          eventTime: event.cal_event_time,
+          sportId: event.sport_id,
+          forceUpdate: shouldForceUpdate
+        });
+        console.log('Create slate response:', response.data);
+        
+        if (response.data.success) {
+          await fetchEvents();
+        } else {
+          console.error('Failed to create slate:', response.data.message);
+        }
+      } catch (error) {
+        console.error('Error creating slate:', error);
       }
-    } catch (error) {
-      console.error('Error creating slate:', error);
-    }
-  };
-
-  const handleRowClick = (id) => {
-    setEditingId(editingId === id ? null : id);
-  };
-
-  const handleEventUpdate = async (updatedEvent) => {
-    try {
-      const eventTypeId = parseInt(updatedEvent.event_type, 10) || null;
-      const isAthleticEvent = eventTypeId === 1;
-      
-      const dataToUpdate = {
-        event_id: updatedEvent.event_id,
-        cal_event_date: updatedEvent.cal_event_date,
-        cal_event_time: updatedEvent.cal_event_time,
-        cal_event_title: updatedEvent.cal_event_title,
-        venue: updatedEvent.venue,
-        production: updatedEvent.production ? 1 : 0,
-        production_team: updatedEvent.production_team,
-        event_type: eventTypeId,
-      };
-
-      if (isAthleticEvent) {
-        dataToUpdate.cal_team_home = updatedEvent.cal_team_home;
-        dataToUpdate.cal_team_away = updatedEvent.cal_team_away;
-        dataToUpdate.sport_id = updatedEvent.sport_id;
-        dataToUpdate.gender = updatedEvent.gender;
-      } else {
-        dataToUpdate.cal_team_home = null;
-        dataToUpdate.cal_team_away = null;
-        dataToUpdate.sport_id = null;
-        dataToUpdate.gender = null;
-      }
-
-      console.log('Sending update request with data:', dataToUpdate);
-
-      const response = await axios.put(`http://localhost:3001/api/calendar/${updatedEvent.event_id}`, dataToUpdate);
-      
-      if (response.data.message === 'Event updated successfully') {
-        console.log('Event updated successfully');
-        fetchEvents(); // Refresh the events list
-        setEditingId(null); // Close the edit form
-      } else {
-        console.error('Failed to update event:', response.data.message);
-      }
-    } catch (error) {
-      console.error('Error updating event:', error);
-    }
-  };
-
-  const handleEventDelete = async (deletedEventId) => {
-    setEvents(events.filter(event => event.event_id !== deletedEventId));
-    setEditingId(null);
-  };
-
-  const formatDate = (dateString) => {
-    const options = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
-    return new Date(dateString).toLocaleDateString('en-US', options);
-  };
-
-  const formatTime = (timeString) => {
-    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  };
-
-  const getRowStyle = (eventDate) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const eventDateObj = new Date(eventDate);
-    eventDateObj.setHours(0, 0, 0, 0);
-
-    if (eventDateObj.getTime() === today.getTime()) {
-      return { backgroundColor: 'lightgreen' };
-    } else if (eventDateObj.getTime() === tomorrow.getTime()) {
-      return { backgroundColor: 'lightyellow' };
-    }
-    return {};
-  };
-
-  const renderTeamWithLogo = (teamName, logoFilename) => {
-    const logoPath = `${process.env.PUBLIC_URL}/images/logos/${logoFilename}`;
-    console.log(`Attempting to load logo for ${teamName} from: ${logoPath}`);
-    return (
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        <img 
-          src={logoPath} 
-          alt={`${teamName} logo`} 
-          style={{ width: '20px', height: '20px', marginRight: '5px' }} 
-          onError={(e) => {
-            console.error(`Failed to load image for ${teamName}: ${logoPath}`);
-            e.target.onerror = null; 
-            e.target.style.display = 'none';
-          }}
-        />
-        {teamName}
-      </div>
-    );
-  };
-
-  const togglePreviousEvents = () => {
-    setShowPreviousEvents(!showPreviousEvents);
-  };
-
-  const handleAddEvent = async (newEvent) => {
-    try {
-      await fetchEvents(); // Refresh the events list
-      setShowAddEventForm(false);
-    } catch (error) {
-      console.error('Error adding event:', error);
-    }
-  };
-
-  const handleNonSportEventSubmit = async (formData) => {
-    try {
-      await axios.post('http://localhost:3001/api/calendar', formData);
-      setShowNonSportForm(false);
-      fetchEvents(); // Refresh the events list
-    } catch (error) {
-      console.error('Error adding non-sport event:', error);
     }
   };
 
   const handleCreateVimeoStream = async (event) => {
-    setLoadingEventId(event.id);
+    setLoadingEventId(event.event_id);
     setFeedbackMessage('');
 
     try {
@@ -208,12 +197,12 @@ function EventTable() {
         eventTitle: event.cal_event_title,
         eventDate: event.cal_event_date,
         eventTime: event.cal_event_time,
-        eventId: event.id
+        eventId: event.event_id
       });
 
       if (response.data.success) {
         setFeedbackMessage('Vimeo stream created successfully!');
-        fetchEvents(); // Refresh the events list
+        fetchEvents();
       } else {
         setFeedbackMessage('Failed to create Vimeo stream.');
       }
@@ -225,118 +214,332 @@ function EventTable() {
     }
   };
 
-  return (
-    <div className="event-table-container">
-      <h2>Event Table</h2>
-      <div className="button-container">
-        <button onClick={togglePreviousEvents}>
-          {showPreviousEvents 
-            ? "Hide Previous Events" 
-            : `See Previous ${previousEventsCount} Events`}
-        </button>
-        <button onClick={() => setShowAddEventForm(true)}>Add New Event</button>
-        <button onClick={() => setShowNonSportForm(true)}>Add Non-Sport Event</button>
+  const formatDate = (dateString) => {
+    const options = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
+    return new Date(dateString).toLocaleDateString('en-US', options);
+  };
+
+  const formatTime = (timeString) => {
+    return new Date(`2000-01-01T${timeString}`).toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit' 
+    });
+  };
+
+  const getRowStyle = (eventDate) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const eventDateObj = new Date(eventDate);
+    eventDateObj.setHours(0, 0, 0, 0);
+
+    if (eventDateObj.getTime() === today.getTime()) {
+      return { backgroundColor: '#e8f5e9' }; // Light green for today
+    } else if (eventDateObj.getTime() === tomorrow.getTime()) {
+      return { backgroundColor: '#fff3e0' }; // Light orange for tomorrow
+    }
+    return {};
+  };
+
+  const renderTeamWithLogo = (teamName, logoFilename) => {
+    if (!teamName) return null;
+    
+    const logoPath = logoFilename 
+      ? `${process.env.PUBLIC_URL}/images/logos/${logoFilename}`
+      : null;
+
+    return (
+      <div className="team-logo-container">
+        {logoPath && (
+          <img 
+            src={logoPath} 
+            alt={`${teamName} logo`} 
+            className="team-logo"
+            onError={(e) => {
+              console.error(`Failed to load image for ${teamName}: ${logoPath}`);
+              e.target.style.display = 'none';
+            }}
+          />
+        )}
+        <span>{teamName}</span>
       </div>
+    );
+  };
+
+  const togglePreviousEvents = () => {
+    setShowPreviousEvents(!showPreviousEvents);
+  };
+
+  const handleAddEvent = async (formData) => {
+    try {
+      console.log('Original form data:', formData);
       
-      {showAddEventForm && (
-        <div className="modal">
-          <div className="modal-content">
-            <AddEventForm onSubmit={handleAddEvent} onCancel={() => setShowAddEventForm(false)} />
-          </div>
-        </div>
-      )}
+      const submitData = {
+        ...formData,
+        cal_team_home: parseInt(formData.home_team_id, 10),
+        cal_team_away: parseInt(formData.away_team_id, 10),
+        production_team: formData.production 
+          ? parseInt(formData.production_team_id, 10)
+          : 3,
+        venue: parseInt(formData.venue_id, 10),
+        event_type: parseInt(formData.event_type, 10),
+        season: parseInt(formData.season, 10),
+        competition_type: parseInt(formData.competition_type, 10),
+        production: formData.production ? 1 : 0,
+        company: parseInt(formData.company, 10)
+      };
 
-      {showNonSportForm && (
-        <NonSportEventForm
-          onSubmit={handleNonSportEventSubmit}
-          onCancel={() => setShowNonSportForm(false)}
-        />
-      )}
+      console.log('Processed submit data:', submitData);
 
-      <table>
-        <thead>
-          <tr>
-            <th>Event Date</th>
-            <th>Event Time</th>
-            <th>Event Title</th>
-            <th>Home Team</th>
-            <th>Away Team</th>
-            <th>Event Type</th>
-            <th>Production</th>
-            <th>Production Team</th>
-            <th>Venue</th>
-            <th>Gender</th>
-            <th>Sport</th>
-            <th>Stream Key</th>
-            <th>Status</th>
-            <th>Boxcast</th>
-            <th>Action</th>
-            <th>Stream</th>
-          </tr>
-        </thead>
-        <tbody>
-          {events.map((event) => (
-            <React.Fragment key={event.event_id}>
-              <tr 
-                onClick={() => handleRowClick(event.event_id)}
-                style={getRowStyle(event.cal_event_date)}
+      // Create the event
+      const response = await axios.post('http://localhost:3001/api/calendar', submitData);
+
+      if (response.data.success) {
+        // If crew assignments exist, save them
+        if (formData.selectedCrewAssignments) {
+          const crewAssignments = Object.entries(formData.selectedCrewAssignments).map(([roleId, assignment]) => ({
+            event_id: response.data.event_id,
+            event_role: roleId,
+            crew_id: assignment.crew_id,
+            user_id: assignment.user_id || null,
+            work_confirmed: 'Pending',
+            crew_paid: 'No',
+            assign_date: new Date().toISOString().slice(0, 19).replace('T', ' ')
+          }));
+
+          await axios.post(
+            `http://localhost:3001/api/events/${response.data.event_id}/crew`,
+            { assignments: crewAssignments }
+          );
+        }
+
+        await fetchEvents();
+        setShowAddEventForm(false);
+        return response.data;
+      }
+    } catch (error) {
+      console.error('Error adding event:', error);
+      throw error;
+    }
+  };
+
+  const handleNonSportEventSubmit = async (formData) => {
+    try {
+      const response = await axios.post('http://localhost:3001/api/calendar', {
+        ...formData,
+        event_type: 2, // Non-sport event type
+        production: formData.production ? 1 : 0,
+        cal_team_home: null,
+        cal_team_away: null,
+        sport_id: null,
+        gender: null
+      });
+
+      if (response.data.success) {
+        console.log('Non-sport event added successfully:', response.data.event);
+        await fetchEvents(); // Refresh the events list
+        setShowNonSportForm(false); // Close the form
+      } else {
+        console.error('Failed to add non-sport event:', response.data.message);
+      }
+    } catch (error) {
+      console.error('Error adding non-sport event:', error);
+    }
+  };
+
+  const handleRowClick = (eventId) => {
+    setEditingId(editingId === eventId ? null : eventId); // Toggle the form
+  };
+
+  const renderProductionCell = (production) => {
+    if (production === 1) {
+      return <input type="checkbox" checked readOnly />;
+    } else {
+      return <span className="camera-only">Camera</span>;
+    }
+  };
+
+  let content;
+  if (showEditForm) {
+    content = (
+      <EventForm
+        event={selectedEvent}
+        onSubmit={handleFormSubmit}
+        onDelete={handleFormDelete}
+        onCancel={handleFormCancel}
+        eventTypes={eventTypes}
+      />
+    );
+  } else if (showAddForm) {
+    content = (
+      <AddEventForm
+        onSubmit={handleAddFormSubmit}
+        onCancel={handleAddFormCancel}
+      />
+    );
+  } else if (showNonSportForm) {
+    content = (
+      <NonSportEventForm
+        onSubmit={handleNonSportFormSubmit}
+        onCancel={handleNonSportFormCancel}
+      />
+    );
+  } else {
+    content = (
+      <>
+        <div className="event-table-container">
+          <div className="table-header">
+            <h2>WHOU Events Calendar</h2>
+            <div className="button-container">
+              <button 
+                className="btn-primary"
+                onClick={togglePreviousEvents}
               >
-                <td>{formatDate(event.cal_event_date)}</td>
-                <td>{formatTime(event.cal_event_time)}</td>
-                <td>{event.cal_event_title}</td>
-                <td>{renderTeamWithLogo(event.home_team_name, event.logo_home)}</td>
-                <td>{renderTeamWithLogo(event.away_team_name, event.logo_away)}</td>
-                <td>{eventTypes.find(type => type.type_id === event.event_type)?.event_type || 'N/A'}</td>
-                <td><input type="checkbox" checked={event.production === 1} readOnly /></td>
-                <td>{event.production_team_name}</td>
-                <td>{event.venue_name}</td>
-                <td>{event.gender}</td>
-                <td>{event.sport_name}</td>
-                <td>{event.stream_key}</td>
-                <td>{event.cal_status}</td>
-                <td>{event.boxcast_}</td>
-                <td>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleMakeSlate(event);
-                    }} 
-                    disabled={!!event.event_slate}
-                  >
-                    Make Slate
-                  </button>
-                </td>
-                <td>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleCreateVimeoStream(event);
-                    }} 
-                    disabled={!!event.vimeo_stream_id || loadingEventId === event.id}
-                  >
-                    {loadingEventId === event.id ? 'Creating...' : 'Create Vimeo Stream'}
-                  </button>
-                  {feedbackMessage && <div className="feedback-message">{feedbackMessage}</div>}
-                </td>
+                {showPreviousEvents 
+                  ? "Hide Previous Events" 
+                  : `Show Previous ${previousEventsCount} Events`}
+              </button>
+              <button 
+                className="btn-primary"
+                onClick={() => setShowAddEventForm(true)}
+              >
+                Add Sport Event
+              </button>
+              <button 
+                className="btn-primary"
+                onClick={() => setShowNonSportForm(true)}
+              >
+                Add Non-Sport Event
+              </button>
+            </div>
+          </div>
+
+          {showAddEventForm && (
+            <div className="modal">
+              <div className="modal-content">
+                <AddEventForm 
+                  onSubmit={handleAddEvent} 
+                  onCancel={() => setShowAddEventForm(false)}
+                />
+              </div>
+            </div>
+          )}
+
+          {showNonSportForm && (
+            <div className="modal">
+              <div className="modal-content">
+                <NonSportEventForm
+                  onSubmit={handleNonSportEventSubmit}
+                  onCancel={() => setShowNonSportForm(false)}
+                />
+              </div>
+            </div>
+          )}
+
+          <table className="event-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Home Team</th>
+                <th>Away Team</th>
+                <th>Event Type</th>
+                <th>Production</th>
+                <th>Production Team</th>
+                <th>Venue</th>
+                <th>Gender</th>
+                <th>Sport</th>
+                <th>Season</th>
+                <th>Stream Key</th>
+                <th>Status</th>
+                <th>BoxCast</th>
+                <th>Slate</th>
+                <th>Vimeo Stream</th>
               </tr>
-              {editingId === event.event_id && (
-                <tr>
-                  <td colSpan="16">
-                    <EventForm 
-                      event={event} 
-                      onSubmit={handleEventUpdate} 
-                      onDelete={handleEventDelete}
-                      eventTypes={eventTypes}
-                    />
-                  </td>
-                </tr>
-              )}
-            </React.Fragment>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+            </thead>
+            <tbody>
+              {events.map((event) => (
+                <React.Fragment key={event.event_id}>
+                  <tr 
+                    onClick={() => {
+                      console.log('Row clicked, event data:', {
+                        fullEvent: event,
+                        season_id: event.season_id,
+                        season: event.season,
+                        season_name: event.season_name
+                      });
+                      handleRowClick(event.event_id);
+                    }}
+                    className={`event-row ${editingId === event.event_id ? 'active' : ''}`}
+                    style={getRowStyle(event.cal_event_date)}
+                  >
+                    <td>{formatDate(event.cal_event_date)}</td>
+                    <td>{formatTime(event.cal_event_time)}</td>
+                    <td>{renderTeamWithLogo(event.home_team_name, event.logo_home)}</td>
+                    <td>{renderTeamWithLogo(event.away_team_name, event.logo_away)}</td>
+                    <td>{eventTypes.find(type => type.type_id === event.event_type)?.event_type || 'N/A'}</td>
+                    <td>{renderProductionCell(event.production)}</td>
+                    <td>{event.production_team_name}</td>
+                    <td>{event.venue_name}</td>
+                    <td>{event.gender}</td>
+                    <td>{event.sport_name}</td>
+                    <td>{event.season_name || 'No Season'}</td>
+                    <td>{event.stream_key}</td>
+                    <td>{event.cal_status}</td>
+                    <td>{event.boxcast_}</td>
+                    <td>
+                      <button 
+                        onClick={(e) => {
+                          console.log('Slate button clicked');
+                          e.stopPropagation();
+                          handleMakeSlate(event);
+                        }} 
+                        className={event.slate ? 'slate-button slate-complete' : 'slate-button'}
+                      >
+                        {event.slate ? 'Slate Complete' : 'Make Slate'}
+                      </button>
+                    </td>
+                    <td>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCreateVimeoStream(event);
+                        }} 
+                        disabled={!!event.vimeo_stream_id || loadingEventId === event.event_id}
+                        className="vimeo-button"
+                      >
+                        {loadingEventId === event.event_id ? 'Creating...' : 'Create Vimeo Stream'}
+                      </button>
+                      {feedbackMessage && <div className="feedback-message">{feedbackMessage}</div>}
+                    </td>
+                  </tr>
+                  {editingId === event.event_id && (
+                    <tr className="edit-form-row">
+                      <td colSpan="16">
+                        <EventForm 
+                          event={event} 
+                          onSubmit={handleFormSubmit}
+                          onDelete={async () => {
+                            await fetchEvents();
+                            setEditingId(null);
+                          }}
+                          eventTypes={eventTypes}
+                          onCancel={() => setEditingId(null)}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </>
+    );
+  }
+
+  return <div className="event-table-container">{content}</div>;
 }
 
 export default EventTable;
